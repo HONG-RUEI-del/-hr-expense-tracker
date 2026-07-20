@@ -35,6 +35,20 @@ function accountFor(department, kind) {
   return codes ? codes[kind] : { code: "", name: "" };
 }
 
+// ---------- Toast ----------
+let toastTimer = null;
+function showToast(message, type) {
+  const el = document.getElementById("toast");
+  el.textContent = message;
+  el.className = "toast toast-show" + (type ? " toast-" + type : "");
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    el.classList.remove("toast-show");
+    setTimeout(() => { el.hidden = true; }, 200);
+  }, 2500);
+}
+
 // Change this to whatever internal password you want to require for add/edit/delete.
 // This only gates the UI in this browser session; it is NOT real security.
 // See firebase-config.sample.js for notes on proper Firestore access rules.
@@ -610,10 +624,12 @@ document.getElementById("btnBulkDelete").addEventListener("click", () => {
     if (selectedIds.size === 0) return;
     if (!confirm(`確定要刪除選取的 ${selectedIds.size} 筆單據嗎？此動作無法復原。`)) return;
     try {
+      const count = selectedIds.size;
       await Promise.all([...selectedIds].map(id => db.collection("claims").doc(id).delete()));
       selectedIds.clear();
+      showToast(`已刪除 ${count} 筆`, "success");
     } catch (err) {
-      alert("刪除失敗：" + err.message);
+      showToast("刪除失敗：" + err.message, "error");
     }
   });
 });
@@ -824,8 +840,9 @@ claimForm.addEventListener("submit", async (e) => {
       await db.collection("claims").add(data);
     }
     closeModal();
+    showToast("已儲存", "success");
   } catch (err) {
-    alert("儲存失敗：" + err.message);
+    showToast("儲存失敗：" + err.message, "error");
   }
 });
 
@@ -836,8 +853,9 @@ document.getElementById("btnDelete").addEventListener("click", async () => {
   try {
     await db.collection("claims").doc(id).delete();
     closeModal();
+    showToast("已刪除", "success");
   } catch (err) {
-    alert("刪除失敗：" + err.message);
+    showToast("刪除失敗：" + err.message, "error");
   }
 });
 

@@ -15,6 +15,29 @@
 
 * { box-sizing: border-box; }
 
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 32px;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--gray-900);
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: var(--border-radius);
+  font-size: 14px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+  z-index: 200;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+}
+.toast.toast-show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.toast.toast-error { background: var(--red); }
+.toast.toast-success { background: var(--green); }
+
 .login-screen {
   position: fixed;
   inset: 0;
