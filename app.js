@@ -809,6 +809,7 @@ document.getElementById("btnCancel").addEventListener("click", closeModal);
 
 claimForm.addEventListener("submit", async (e) => {
   e.preventDefault();
+  if (!confirm("確定要儲存這筆單據嗎？")) return;
   const id = document.getElementById("fId").value;
   const data = {
     type: document.getElementById("fType").value,
