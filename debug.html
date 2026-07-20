@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Firestore 診斷</title>
+<style>
+  body { font-family: monospace; padding: 20px; background: #111; color: #eee; }
+  #log div { margin-bottom: 10px; padding: 10px; border-radius: 4px; white-space: pre-wrap; word-break: break-all; }
+  .ok { background: #14532d; }
+  .err { background: #7f1d1d; }
+  .info { background: #1e3a5f; }
+  input { font-size: 16px; padding: 6px; margin: 4px 0; width: 300px; }
+  button { font-size: 16px; padding: 8px 16px; margin: 4px 0; }
+</style>
+</head>
+<body>
+<h1>Firestore 寫入/讀取診斷</h1>
+<div id="loginBox">
+  <div>Email: <input id="email" type="email"></div>
+  <div>密碼: <input id="password" type="password"></div>
+  <button id="btnLogin">登入並開始測試</button>
+</div>
+<div id="log"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script>
+function log(msg, cls) {
+  const div = document.createElement("div");
+  div.className = cls || "info";
+  div.textContent = msg;
+  document.getElementById("log").prepend(div);
+}
+
+log("firebaseConfig: " + JSON.stringify(firebaseConfig), "info");
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+log("Firebase 已初始化，projectId=" + firebaseConfig.projectId, "info");
+
+document.getElementById("btnLogin").addEventListener("click", async () => {
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value;
+  try {
+    const cred = await auth.signInWithEmailAndPassword(email, password);
+    log("登入成功: " + cred.user.email, "ok");
+    runTests();
+  } catch (err) {
+    log("登入失敗: [" + err.code + "] " + err.message, "err");
+  }
+});
+
+async function runTests() {
+  log("開始寫入測試...", "info");
+  try {
+    const ref = await db.collection("claims").add({
+      debugTest: true,
+      note: "診斷用測試資料 " + new Date().toISOString(),
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      createdBy: auth.currentUser.email
+    });
+    log("寫入 add() 呼叫成功回傳，文件 ID = " + ref.id + "（這只代表本機沒有立即報錯，還要看下面的伺服器確認結果）", "ok");
+
+    // 用 get({source: 'server'}) 強制跳過本機快取，直接問伺服器這筆資料是否真的存在
+    try {
+      const serverDoc = await ref.get({ source: "server" });
+      if (serverDoc.exists) {
+        log("✅ 伺服器確認：文件真的寫進去了！內容：" + JSON.stringify(serverDoc.data()), "ok");
+      } else {
+        log("❌ 伺服器確認：文件不存在（本機以為寫成功，但伺服器沒收到）", "err");
+      }
+    } catch (serverErr) {
+      log("❌ 向伺服器確認時發生錯誤: [" + serverErr.code + "] " + serverErr.message, "err");
+    }
+  } catch (err) {
+    log("❌ 寫入失敗: [" + err.code + "] " + err.message, "err");
+  }
+
+  log("開始讀取測試（強制從伺服器讀，跳過本機快取）...", "info");
+  try {
+    const snap = await db.collection("claims").get({ source: "server" });
+    log("✅ 伺服器讀取成功，共 " + snap.size + " 筆文件", "ok");
+    snap.forEach(d => log("  文件 " + d.id + ": " + JSON.stringify(d.data())), "info");
+  } catch (err) {
+    log("❌ 讀取失敗: [" + err.code + "] " + err.message, "err");
+  }
+}
+</script>
+</body>
+</html>
