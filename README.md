@@ -26,20 +26,35 @@ python -m http.server 8000
    rules_version = '2';
    service cloud.firestore {
      match /databases/{database}/documents {
+       function isAdmin() {
+         return request.auth != null &&
+           exists(/databases/$(database)/documents/admins/$(request.auth.token.email));
+       }
        match /claims/{docId} {
          allow read, create: if request.auth != null;
-         allow update, delete: if request.auth != null && resource.data.createdBy == request.auth.token.email;
+         allow update, delete: if request.auth != null &&
+           (resource.data.createdBy == request.auth.token.email || isAdmin());
+       }
+       match /admins/{email} {
+         allow read: if request.auth != null;
+         allow write: if false;
        }
      }
    }
    ```
+
+   `admins` collection 是用來設定「除了本人以外，還有誰可以改別人建立的單據」（例如會計課）：
+   - 到 Firestore Database → 資料 → 手動新增一個 collection，名稱打 `admins`
+   - 裡面新增文件，**文件 ID 直接打該人員的登入 email**（例如 `accounting@hzauto.com.tw`），欄位內容隨便填一個都可以（例如 `note: "會計"`）
+   - 這個 collection 只有你在 Console 手動維護，前端網頁沒有任何入口能新增/修改它（`allow write: if false`），所以不怕被亂改
 
 7. 複製 `firebase-config.sample.js` 為 `firebase-config.js`，貼上你自己的設定值
 8. 打開 `index.html`，用剛剛在 Authentication 開的帳號登入即可使用
 
 > 現在寫入保護是靠 Firebase Authentication（必須登入公司帳號才能讀寫資料），比之前「誰都能改」的版本嚴謹很多，
 > 每筆單據也會記錄是哪個帳號建立/最後修改的（編輯視窗底部會顯示）。
-> **編輯/刪除單據**已限制為只有建立者本人可以改（依 `createdBy` 帳號比對），其他登入的人可以看到全部單據，但只能檢視、不能編輯或刪除不是自己建立的單據。
+> **編輯/刪除單據**已限制為只有建立者本人、或是被列在 `admins` collection 裡的帳號（例如會計課）可以改，
+> 其他登入的人可以看到全部單據，但只能檢視、不能編輯或刪除不是自己建立的單據。
 > `app.js` 裡原本那組共用密碼（`APP_PASSWORD`/`REQUIRE_PASSWORD`）現在已經是多餘的雙重保護，
 > 預設是關閉的（`REQUIRE_PASSWORD = false`），不影響使用，之後想清掉也可以再說。
 

@@ -9,15 +9,24 @@
 //    rules_version = '2';
 //    service cloud.firestore {
 //      match /databases/{database}/documents {
+//        function isAdmin() {
+//          return request.auth != null &&
+//            exists(/databases/$(database)/documents/admins/$(request.auth.token.email));
+//        }
 //        match /claims/{docId} {
 //          allow read, create: if request.auth != null;
-//          allow update, delete: if request.auth != null && resource.data.createdBy == request.auth.token.email;
+//          allow update, delete: if request.auth != null &&
+//            (resource.data.createdBy == request.auth.token.email || isAdmin());
+//        }
+//        match /admins/{email} {
+//          allow read: if request.auth != null;
+//          allow write: if false;
 //        }
 //      }
 //    }
 //
-//    這組規則要求「必須是登入的帳號」才能讀寫資料，而且編輯/刪除只限本人當初建立的單據，
-//    其他登入的人只能看、不能改到不是自己建立的單據。
+//    這組規則要求「必須是登入的帳號」才能讀寫資料，編輯/刪除只限本人當初建立的單據，
+//    或是有被加進 admins collection 的帳號（例如會計課，文件ID=該人email，詳見 README）。
 //
 // 7. 把下面五個值換成你自己專案的值，並把檔名改成 firebase-config.js（跟 index.html 同一層）
 

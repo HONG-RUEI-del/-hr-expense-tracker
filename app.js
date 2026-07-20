@@ -60,6 +60,7 @@ const REQUIRE_PASSWORD = false;
 let db = null;
 let auth = null;
 let currentUser = null;
+let isAdminUser = false;
 let claims = [];
 let unsubscribe = null;
 
@@ -93,10 +94,15 @@ function showConfigWarning() {
 // 登入狀態改變（登入/登出/頁面剛載入時判斷是否已有登入 session）
 function handleAuthChange(user) {
   currentUser = user;
+  isAdminUser = false;
   if (user) {
     document.getElementById("loginScreen").hidden = true;
     document.getElementById("appRoot").hidden = false;
     document.getElementById("currentUserEmail").textContent = user.email;
+    db.collection("admins").doc(user.email).get().then(doc => {
+      isAdminUser = doc.exists;
+      render();
+    }).catch(() => {});
     if (!unsubscribe) listenClaims();
   } else {
     if (unsubscribe) { unsubscribe(); unsubscribe = null; }
@@ -548,7 +554,7 @@ function render() {
 
   filtered.forEach(c => {
     const overdue = isOverdue(c);
-    const canDelete = !c.createdBy || (currentUser && c.createdBy === currentUser.email);
+    const canDelete = !c.createdBy || isAdminUser || (currentUser && c.createdBy === currentUser.email);
     if (!canDelete) selectedIds.delete(c.id);
     const dateDisplay = c.type === "trip" && c.dateEnd && c.dateEnd !== c.dateStart
       ? `${c.dateStart} ~ ${c.dateEnd}` : c.dateStart;
@@ -776,7 +782,7 @@ function openEdit(claim) {
     // amount last in case it was manually adjusted away from the auto-sum.
     document.getElementById("fAmount").value = claim.amount || 0;
     document.getElementById("modalTitle").textContent = "編輯" + (claim.type === "overtime" ? "廠內加班誤餐費申請單" : "國內出差請款單");
-    const isOwner = !claim.createdBy || (currentUser && claim.createdBy === currentUser.email);
+    const isOwner = !claim.createdBy || isAdminUser || (currentUser && claim.createdBy === currentUser.email);
     document.getElementById("btnDelete").hidden = !isOwner;
     document.getElementById("btnSave").hidden = !isOwner;
     claimForm.querySelectorAll("input, select, textarea, button").forEach(el => {
@@ -786,7 +792,7 @@ function openEdit(claim) {
     const auditInfo = document.getElementById("auditInfo");
     if (claim.createdBy || claim.updatedBy) {
       auditInfo.textContent = `建立者：${claim.createdBy || "未知"}${claim.updatedBy && claim.updatedBy !== claim.createdBy ? "　最後修改：" + claim.updatedBy : ""}`
-        + (isOwner ? "" : "（僅建立者本人能編輯/刪除，你只能檢視）");
+        + (isOwner ? "" : "（僅建立者本人或會計/管理人員能編輯/刪除，你只能檢視）");
       auditInfo.hidden = false;
     }
     modalOverlay.hidden = false;
