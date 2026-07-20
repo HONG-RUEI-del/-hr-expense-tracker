@@ -10,13 +10,14 @@
 //    service cloud.firestore {
 //      match /databases/{database}/documents {
 //        match /claims/{docId} {
-//          allow read, write: if request.auth != null;
+//          allow read, create: if request.auth != null;
+//          allow update, delete: if request.auth != null && resource.data.createdBy == request.auth.token.email;
 //        }
 //      }
 //    }
 //
-//    這組規則要求「必須是登入的帳號」才能讀寫資料，比之前任何人都能改的版本嚴謹很多。
-//    如果之後還要更細（例如只能改自己建立的單據），可以再請我幫忙調整規則。
+//    這組規則要求「必須是登入的帳號」才能讀寫資料，而且編輯/刪除只限本人當初建立的單據，
+//    其他登入的人只能看、不能改到不是自己建立的單據。
 //
 // 7. 把下面五個值換成你自己專案的值，並把檔名改成 firebase-config.js（跟 index.html 同一層）
 

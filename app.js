@@ -548,11 +548,13 @@ function render() {
 
   filtered.forEach(c => {
     const overdue = isOverdue(c);
+    const canDelete = !c.createdBy || (currentUser && c.createdBy === currentUser.email);
+    if (!canDelete) selectedIds.delete(c.id);
     const dateDisplay = c.type === "trip" && c.dateEnd && c.dateEnd !== c.dateStart
       ? `${c.dateStart} ~ ${c.dateEnd}` : c.dateStart;
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td><input type="checkbox" class="row-select" data-id="${c.id}" ${selectedIds.has(c.id) ? "checked" : ""}></td>
+      <td><input type="checkbox" class="row-select" data-id="${c.id}" ${selectedIds.has(c.id) ? "checked" : ""} ${canDelete ? "" : "disabled title=\"只有建立者本人能刪除\""}></td>
       <td><span class="type-badge type-${c.type}">${TYPE_LABELS[c.type]}</span></td>
       <td>${escapeHtml(c.applicant)}</td>
       <td>${escapeHtml(c.department || "")}</td>
@@ -609,7 +611,7 @@ document.getElementById("filterKeyword").addEventListener("input", (e) => {
 
 // ---------- 多選刪除 ----------
 document.getElementById("selectAllCheckbox").addEventListener("click", (e) => {
-  const visibleIds = [...document.querySelectorAll("#claimsBody .row-select")].map(cb => cb.dataset.id);
+  const visibleIds = [...document.querySelectorAll("#claimsBody .row-select:not(:disabled)")].map(cb => cb.dataset.id);
   visibleIds.forEach(id => { if (e.target.checked) selectedIds.add(id); else selectedIds.delete(id); });
   render();
 });
@@ -774,10 +776,17 @@ function openEdit(claim) {
     // amount last in case it was manually adjusted away from the auto-sum.
     document.getElementById("fAmount").value = claim.amount || 0;
     document.getElementById("modalTitle").textContent = "編輯" + (claim.type === "overtime" ? "廠內加班誤餐費申請單" : "國內出差請款單");
-    document.getElementById("btnDelete").hidden = false;
+    const isOwner = !claim.createdBy || (currentUser && claim.createdBy === currentUser.email);
+    document.getElementById("btnDelete").hidden = !isOwner;
+    document.getElementById("btnSave").hidden = !isOwner;
+    claimForm.querySelectorAll("input, select, textarea, button").forEach(el => {
+      if (el.id === "btnCancel" || el.id === "modalClose") return;
+      el.disabled = !isOwner;
+    });
     const auditInfo = document.getElementById("auditInfo");
     if (claim.createdBy || claim.updatedBy) {
-      auditInfo.textContent = `建立者：${claim.createdBy || "未知"}${claim.updatedBy && claim.updatedBy !== claim.createdBy ? "　最後修改：" + claim.updatedBy : ""}`;
+      auditInfo.textContent = `建立者：${claim.createdBy || "未知"}${claim.updatedBy && claim.updatedBy !== claim.createdBy ? "　最後修改：" + claim.updatedBy : ""}`
+        + (isOwner ? "" : "（僅建立者本人能編輯/刪除，你只能檢視）");
       auditInfo.hidden = false;
     }
     modalOverlay.hidden = false;

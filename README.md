@@ -27,7 +27,8 @@ python -m http.server 8000
    service cloud.firestore {
      match /databases/{database}/documents {
        match /claims/{docId} {
-         allow read, write: if request.auth != null;
+         allow read, create: if request.auth != null;
+         allow update, delete: if request.auth != null && resource.data.createdBy == request.auth.token.email;
        }
      }
    }
@@ -38,7 +39,7 @@ python -m http.server 8000
 
 > 現在寫入保護是靠 Firebase Authentication（必須登入公司帳號才能讀寫資料），比之前「誰都能改」的版本嚴謹很多，
 > 每筆單據也會記錄是哪個帳號建立/最後修改的（編輯視窗底部會顯示）。
-> 如果之後想再收緊成「只能改自己建立的單據」，可以再請我協助調整 Firestore 規則。
+> **編輯/刪除單據**已限制為只有建立者本人可以改（依 `createdBy` 帳號比對），其他登入的人可以看到全部單據，但只能檢視、不能編輯或刪除不是自己建立的單據。
 > `app.js` 裡原本那組共用密碼（`APP_PASSWORD`/`REQUIRE_PASSWORD`）現在已經是多餘的雙重保護，
 > 預設是關閉的（`REQUIRE_PASSWORD = false`），不影響使用，之後想清掉也可以再說。
 
