@@ -73,8 +73,8 @@ function initFirebase() {
     firebase.initializeApp(firebaseConfig);
     db = firebase.firestore();
     // 有些公司防火牆/防毒軟體會擋掉 Firestore 預設的串流連線，導致寫入卡住沒有反應也沒有錯誤。
-    // 這個設定讓瀏覽器自動偵測、改用相容性較好的長輪詢方式連線。
-    db.settings({ experimentalAutoDetectLongPolling: true });
+    // 強制一律使用相容性較好的長輪詢方式連線，繞過這類防火牆問題。
+    db.settings({ experimentalForceLongPolling: true });
     auth = firebase.auth();
     auth.onAuthStateChanged(handleAuthChange);
   } catch (e) {

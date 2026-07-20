@@ -39,8 +39,8 @@ log("firebaseConfig: " + JSON.stringify(firebaseConfig), "info");
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
-db.settings({ experimentalAutoDetectLongPolling: true });
-log("已啟用 experimentalAutoDetectLongPolling", "info");
+db.settings({ experimentalForceLongPolling: true });
+log("已啟用 experimentalForceLongPolling（強制長輪詢）", "info");
 
 log("Firebase 已初始化，projectId=" + firebaseConfig.projectId, "info");
 
