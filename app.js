@@ -602,7 +602,7 @@ document.getElementById("filterDept").addEventListener("change", (e) => {
   render();
 });
 
-document.getElementById("filterSearch").addEventListener("input", (e) => {
+document.getElementById("filterKeyword").addEventListener("input", (e) => {
   state.search = e.target.value.trim();
   render();
 });
