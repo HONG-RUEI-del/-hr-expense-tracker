@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>鴻睿自動化 費用單追蹤系統</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- 登入畫面：沒登入前蓋住整個系統 -->
+<div id="loginScreen" class="login-screen" hidden>
+  <form id="loginForm" class="login-box">
+    <img src="assets/logo.png" alt="鴻睿自動化" class="login-logo">
+    <h2>費用單追蹤系統</h2>
+    <p class="login-hint">請用公司配發的帳號登入</p>
+    <div class="form-row">
+      <label>Email</label>
+      <input type="email" id="loginEmail" required autocomplete="username">
+    </div>
+    <div class="form-row">
+      <label>密碼</label>
+      <input type="password" id="loginPassword" required autocomplete="current-password">
+    </div>
+    <p id="loginError" class="login-error" hidden></p>
+    <button type="submit" class="btn btn-primary login-submit">登入</button>
+    <p class="login-hint">沒有帳號嗎？請聯絡財務課開通。</p>
+  </form>
+</div>
+
+<div id="appRoot" hidden>
+<div id="sidebarBackdrop" class="sidebar-backdrop" hidden></div>
+<nav id="sidebar" class="sidebar">
+  <img src="assets/logo.png" alt="鴻睿自動化" class="sidebar-logo">
+  <button id="btnAddOvertime" class="btn btn-primary sidebar-btn">➕ 廠內加班誤餐費</button>
+  <button id="btnAddTrip" class="btn btn-primary sidebar-btn">➕ 國內出差請款單</button>
+</nav>
+
+<div class="content-area">
+<header class="topbar">
+  <div class="topbar-title">
+    <button id="btnSidebarToggle" class="hamburger-btn" aria-label="開啟選單">☰</button>
+    <h1>費用單追蹤系統</h1>
+  </div>
+  <div class="topbar-actions">
+    <button id="btnExport" class="btn btn-secondary">匯出 Excel</button>
+    <button id="btnExportAccounting" class="btn btn-secondary">匯出會計格式</button>
+    <button id="btnRates" class="btn btn-ghost">費用基準表</button>
+    <span id="currentUserEmail" class="current-user-email"></span>
+    <button id="btnLogout" class="btn btn-ghost">登出</button>
+  </div>
+</header>
+
+<section class="filters">
+  <div class="filter-group" id="typeTabs">
+    <button class="chip active" data-type="all">全部單據</button>
+    <button class="chip" data-type="overtime">廠內加班</button>
+    <button class="chip" data-type="trip">國內出差</button>
+  </div>
+
+  <div class="filter-group" id="statusTabs">
+    <button class="chip status-chip active" data-status="all">全部狀態 <span class="count" id="cnt-all">0</span></button>
+    <button class="chip status-chip" data-status="pending_supervisor">待主管簽核 <span class="count" id="cnt-pending_supervisor">0</span></button>
+    <button class="chip status-chip" data-status="pending_vp">待副總核准 <span class="count" id="cnt-pending_vp">0</span></button>
+    <button class="chip status-chip" data-status="pending_accounting">待會計/領款 <span class="count" id="cnt-pending_accounting">0</span></button>
+    <button class="chip status-chip" data-status="paid">已領款 <span class="count" id="cnt-paid">0</span></button>
+    <button class="chip status-chip" data-status="returned">已退回 <span class="count" id="cnt-returned">0</span></button>
+  </div>
+
+  <div class="filter-group filter-inline">
+    <select id="filterDept">
+      <option value="">全部部門</option>
+    </select>
+    <input type="text" id="filterSearch" placeholder="搜尋申請人 / 事由">
+  </div>
+
+  <div class="filter-group" id="bulkActionBar" hidden>
+    <span id="bulkSelectedCount">已選 0 筆</span>
+    <button type="button" id="btnBulkDelete" class="btn btn-danger">刪除已選</button>
+    <button type="button" id="btnBulkClear" class="btn btn-ghost">取消選取</button>
+  </div>
+</section>
+
+<main id="listWrap">
+  <table class="claims-table">
+    <thead>
+      <tr>
+        <th><input type="checkbox" id="selectAllCheckbox" aria-label="全選"></th>
+        <th>類型</th>
+        <th>申請人</th>
+        <th>部門</th>
+        <th>日期</th>
+        <th>事由/原因</th>
+        <th>金額</th>
+        <th>送件期限</th>
+        <th>狀態</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="claimsBody"></tbody>
+  </table>
+  <p id="emptyState" class="empty-state" hidden>目前沒有符合條件的單據。</p>
+</main>
+</div>
+
+<!-- Add/Edit Modal -->
+<div id="modalOverlay" class="modal-overlay" hidden>
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalTitle">新增單據</h2>
+      <button id="modalClose" class="btn-icon">✕</button>
+    </div>
+    <form id="claimForm" class="modal-body">
+      <input type="hidden" id="fId">
+      <input type="hidden" id="fType">
+
+      <div class="form-row">
+        <label>申請人 <span class="req">*</span></label>
+        <div class="autocomplete-wrap">
+          <input type="text" id="fApplicant" autocomplete="off" placeholder="輸入姓名搜尋" required>
+          <div id="applicantSuggest" class="autocomplete-list" hidden></div>
+        </div>
+      </div>
+
+      <div class="form-row form-row-2col" id="rowNationality">
+        <div>
+          <label>身分（計算誤餐費用）</label>
+          <select id="fNationality">
+            <option value="台籍">台籍</option>
+            <option value="外籍">外籍</option>
+          </select>
+        </div>
+        <div>
+          <label>工令</label>
+          <input type="text" id="fWorkOrder" placeholder="工令號碼">
+        </div>
+      </div>
+
+      <div class="form-row" id="rowCompanions">
+        <div class="form-row-label-with-check">
+          <label>同行人員（可複選，各自填身分/工令）</label>
+          <button type="button" id="btnAddCompanion" class="btn btn-ghost btn-small">＋ 新增同行人員</button>
+        </div>
+        <div id="companionsList"></div>
+      </div>
+
+      <div class="form-row">
+        <label>部門 <span class="req">*</span></label>
+        <select id="fDepartment" required></select>
+      </div>
+
+      <div class="form-row" id="rowLocation">
+        <label>出差地點</label>
+        <input type="text" id="fLocation">
+      </div>
+
+      <div class="form-row">
+        <label id="labelReason">事由/原因</label>
+        <textarea id="fReason" rows="2"></textarea>
+      </div>
+
+      <div class="form-row" id="rowDate1Label">
+        <label id="labelDateStart">日期 <span class="req">*</span></label>
+        <input type="date" id="fDateStart" required>
+      </div>
+
+      <div class="form-row" id="rowDateEnd">
+        <label>出差結束日</label>
+        <input type="date" id="fDateEnd">
+      </div>
+
+      <div class="form-row form-row-2col" id="rowOTTime">
+        <div>
+          <label>加班開始</label>
+          <input type="time" id="fOTStart">
+        </div>
+        <div>
+          <label>加班結束</label>
+          <input type="time" id="fOTEnd">
+        </div>
+      </div>
+
+      <div class="form-row form-row-2col" id="rowTripTime">
+        <div>
+          <label>出廠時間</label>
+          <input type="time" id="fTripOutTime">
+        </div>
+        <div>
+          <label>進廠時間</label>
+          <input type="time" id="fTripInTime">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-row-label-with-check">
+          <label for="fMealFee">誤餐費（依時間自動試算，金額鎖定）</label>
+          <label class="inline-check"><input type="checkbox" id="fMealFeeZero"> 不列誤餐費</label>
+        </div>
+        <input type="number" id="fMealFee" min="0" step="1" readonly>
+      </div>
+
+      <div class="form-row form-row-2col" id="rowMileage">
+        <div>
+          <label>車輛類型</label>
+          <select id="fVehicleType">
+            <option value="">未使用車輛</option>
+            <option value="主管配車">主管配車（$3/km）</option>
+            <option value="私人汽車">私人汽車（$6.5/km）</option>
+            <option value="私人機車">私人機車（$5/km）</option>
+          </select>
+        </div>
+        <div>
+          <label>公里數</label>
+          <input type="number" id="fMileageKm" min="0" step="0.1" value="0">
+        </div>
+      </div>
+
+      <div class="form-row" id="rowMileageFee">
+        <label for="fMileageFee">舟車費（依車輛類型＋公里數自動試算，金額鎖定）</label>
+        <input type="number" id="fMileageFee" min="0" step="1" readonly value="0">
+      </div>
+
+      <div class="form-row" id="rowOtherItems">
+        <div class="form-row-label-with-check">
+          <label>其他費用發票明細（油資/製造費用/其他，不含誤餐費、舟車費）</label>
+          <button type="button" id="btnAddInvoice" class="btn btn-ghost btn-small">＋ 新增發票收據</button>
+        </div>
+        <div id="invoiceItemsList"></div>
+        <p class="invoice-summary">其他費用總金額（含稅）：<span id="otherItemsTotalDisplay">$0</span></p>
+      </div>
+
+      <div class="form-row">
+        <label id="labelAmount">金額（元，＝誤餐費＋舟車費＋其他費用總金額，金額鎖定） <span class="req">*</span></label>
+        <input type="number" id="fAmount" min="0" step="1" required readonly>
+      </div>
+
+      <div class="form-row">
+        <label>狀態</label>
+        <select id="fStatus">
+          <option value="pending_supervisor">待主管簽核</option>
+          <option value="pending_vp">待副總核准</option>
+          <option value="pending_accounting">待會計/領款</option>
+          <option value="paid">已領款</option>
+          <option value="returned">已退回</option>
+        </select>
+      </div>
+
+      <div class="form-row">
+        <label>備註</label>
+        <textarea id="fNote" rows="2"></textarea>
+      </div>
+
+      <p id="auditInfo" class="audit-info" hidden></p>
+
+      <div class="form-actions">
+        <button type="button" id="btnDelete" class="btn btn-danger" hidden>刪除</button>
+        <div class="spacer"></div>
+        <button type="button" id="btnCancel" class="btn btn-ghost">取消</button>
+        <button type="submit" class="btn btn-primary">儲存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Rates reference Modal -->
+<div id="ratesOverlay" class="modal-overlay" hidden>
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <h2>費用認列基準表（僅供參考，金額仍需自行填寫）</h2>
+      <button id="ratesClose" class="btn-icon">✕</button>
+    </div>
+    <div class="modal-body">
+      <h3>廠內加班誤餐費</h3>
+      <table class="ref-table">
+        <tr><th>時間</th><th>台籍誤餐費</th><th>外籍誤餐費</th></tr>
+        <tr><td>超過晚上19:30(含)</td><td>$80</td><td>$0</td></tr>
+        <tr><td>超過晚上22:30(含)</td><td>$80+$50=$130</td><td>$50</td></tr>
+      </table>
+      <p class="ref-note">外籍同仁薪水已含晚餐誤餐費$80，故不可申請超過19:30誤餐費$80，可申請超過22:30誤餐費$50。申請單務必於次月5日前送至會計課，逾期不接受補請款。</p>
+
+      <h3>國內出差 - 誤餐費（累加制，每跨過一個門檻就多加一筆）</h3>
+      <table class="ref-table">
+        <tr><th>時間</th><th>台籍員工</th><th>外籍員工</th></tr>
+        <tr><td>超過中午12:00</td><td>+$50</td><td>+$50</td></tr>
+        <tr><td>超過晚上19:30</td><td>+$130</td><td>+$50</td></tr>
+        <tr><td>超過晚上22:30</td><td>+$130</td><td>+$130</td></tr>
+      </table>
+      <p class="ref-note">例：出差從9:00出廠、23:30進廠，台籍員工跨過12:00、19:30、22:30三個門檻，誤餐費＝50+130+130＝$310。系統會依「出廠時間」與「進廠時間」自動累加，兩個時間都要填才能算對。</p>
+
+      <h3>國內出差 - 油費補助</h3>
+      <table class="ref-table">
+        <tr><th>車輛</th><th>每公里補助</th></tr>
+        <tr><td>主管配車</td><td>$3</td></tr>
+        <tr><td>私人汽車</td><td>$6.5</td></tr>
+        <tr><td>私人機車</td><td>$5</td></tr>
+      </table>
+
+      <h3>國內出差 - 出差津貼</h3>
+      <p class="ref-note">台籍員工 $400/天，外籍員工 $200/天（最後1天沒有出差津貼）</p>
+      <table class="ref-table">
+        <tr><th>天數</th><th>台籍員工</th><th>外籍員工</th></tr>
+        <tr><td>2天1夜</td><td>$400*1</td><td>$200*1</td></tr>
+        <tr><td>3天2夜</td><td>$400*2</td><td>$200*2</td></tr>
+        <tr><td>4天3夜</td><td>$400*3</td><td>$200*3</td></tr>
+      </table>
+
+      <h3>國內出差 - 值夜班津貼（從22:30起算）</h3>
+      <table class="ref-table">
+        <tr><th>時間</th><th>夜班津貼</th><th>第1餐</th><th>第2餐</th></tr>
+        <tr><td>22:30起算超過6H</td><td>$300</td><td>$50</td><td>$0</td></tr>
+        <tr><td>22:30起算超過12H</td><td>$500</td><td>$50</td><td>$130</td></tr>
+      </table>
+      <p class="ref-note">請款單務必於當月送至會計課，逾期不接受補請款。</p>
+    </div>
+  </div>
+</div>
+
+<!-- Password gate for write actions -->
+<div id="pwOverlay" class="modal-overlay" hidden>
+  <div class="modal modal-narrow">
+    <div class="modal-header">
+      <h2>請輸入操作密碼</h2>
+    </div>
+    <div class="modal-body">
+      <input type="password" id="pwInput" placeholder="密碼">
+      <div class="form-actions">
+        <div class="spacer"></div>
+        <button type="button" id="pwCancel" class="btn btn-ghost">取消</button>
+        <button type="button" id="pwConfirm" class="btn btn-primary">確認</button>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+<!-- 結束 #appRoot -->
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="firebase-config.js"></script>
+<script src="employees.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
